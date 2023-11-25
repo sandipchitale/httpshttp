@@ -1,0 +1,30 @@
+spring:
+  main:
+    banner-mode: off
+  ssl:
+    bundle:
+      jks:
+        server:
+          keystore:
+            type: JKS
+            location: classpath:server1-keystore.jks
+            password: abcdefg
+        client:
+          truststore:
+            type: JKS
+            location: classpath:server1-truststore.jks
+            password: abcdefg
+server:
+  ssl:
+    bundle: server
+logging:
+  level:
+    root: warn
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+loopback:
+  http:
+    port: 8081
