@@ -2,7 +2,9 @@
 
 A simple Spring Boot app that configures
 
-- Https on port 8080 listening on 0.0.0.0 with `SslBundle` named `server` that wraps `server1.jks` keystore.
+- Https on port 8080 listening on 0.0.0.0 
+  - without SslBundle, using trustAllCertsTrustManagers and NoopHostnameVerifier.
+  - with `SslBundle` named `server` that wraps `server1.jks` keystore.
 - Http on port `loopback.http.port` listening on 127.0.0.1 only when running a embedded Tomcat
 
 Accesses each using `RestClient` instances, one of which is configured with `SslBundle` named `client` that wraps `server1-truststore.jks` truststore.
