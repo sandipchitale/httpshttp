@@ -1,5 +1,7 @@
 package sandipchitale.httpshttp;
 
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
+import io.netty.handler.ssl.util.KeyManagerFactoryWrapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.apache.catalina.connector.Connector;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -17,7 +19,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnNotWarDeployment;
 import org.springframework.boot.autoconfigure.web.client.RestClientSsl;
 import org.springframework.boot.autoconfigure.web.reactive.function.client.WebClientSsl;
+import org.springframework.boot.ssl.SslBundle;
 import org.springframework.boot.ssl.SslBundles;
+import org.springframework.boot.ssl.SslManagerBundle;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory;
 import org.springframework.boot.web.server.WebServerFactoryCustomizer;
@@ -29,10 +33,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509ExtendedTrustManager;
+import javax.net.ssl.*;
 import java.net.Socket;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
@@ -44,6 +45,17 @@ public class HttpshttpApplication {
 	private static final Logger LOG = LoggerFactory.getLogger(HttpshttpApplication.class);
 
 	private static HttpComponentsClientHttpRequestFactory requestFactory;
+	private final SslBundle insecureSslBundle;
+
+	HttpshttpApplication() {
+		SslManagerBundle insecureSslManagerBundle = SslManagerBundle.of(new KeyManagerFactoryWrapper(new KeyManager() {}),
+				InsecureTrustManagerFactory.INSTANCE);
+		insecureSslBundle = SslBundle.of(null,
+				null,
+				null,
+				null,
+				insecureSslManagerBundle);
+	}
 
 	public static void main(String[] args) {
 		SpringApplication.run(HttpshttpApplication.class, args);
@@ -58,27 +70,57 @@ public class HttpshttpApplication {
 			connector.setProperty("address", "127.0.0.1");
 			connector.setPort(loopbackHttpPort);
 			connector.setScheme("http");
-            tomcat.addAdditionalTomcatConnectors(connector);
-        };
+			tomcat.addAdditionalTomcatConnectors(connector);
+		};
 	}
 
 	@RestController
 	public static class IndexController {
-	    
-	    @GetMapping("/")
-	    public String index(HttpServletRequest httpServletRequest) {
-	        return "Hello " + httpServletRequest.getRequestURL();
-	    }
+
+		@GetMapping("/")
+		public String index(HttpServletRequest httpServletRequest) {
+			return "Hello " + httpServletRequest.getRequestURL();
+		}
 	}
 
 	@Bean
 	public CommandLineRunner clrWebClient(WebClientSsl webClientSsl,
 										  @Value("${loopback.http.port}") int loopbackHttpPort) {
-	    return (String... args) -> {
-			HttpComponentsClientHttpRequestFactory requestFactory = getHttpComponentsClientHttpRequestFactory();
+		return (String... args) -> {
+			WebClient webClient;
+			webClient = WebClient.builder()
+								 .apply(webClientSsl.fromBundle(insecureSslBundle))
+								 .build();
+
+			System.out.println("Using WebClient: Accessing with SslBundle insecureSslBundle https://server1:8080/ : ");
+			System.out.println(webClient
+					.get()
+					.uri("https://server1:8080/")
+					.retrieve()
+					.bodyToMono(String.class)
+					.block()
+			);
+
+            System.out.println("Using WebClient: Accessing with SslBundle insecureSslBundle https://127.0.0.1:8080/ : ");
+			System.out.println(webClient
+					.get()
+					.uri("https://127.0.0.1:8080/")
+					.retrieve()
+					.bodyToMono(String.class)
+					.block()
+			);
+
+            System.out.println("Using WebClient: Accessing with SslBundle insecureSslBundle https://localhost:8080/ : ");
+			System.out.println(webClient
+					.get()
+					.uri("https://localhost:8080/")
+					.retrieve()
+					.bodyToMono(String.class)
+					.block()
+			);
 
 			System.out.println("Using WebClient: Accessing with SslBundle 'client' https://server1:8080/ : ");
-			WebClient webClient = WebClient.builder().apply(webClientSsl.fromBundle("client")).build();
+			webClient = WebClient.builder().apply(webClientSsl.fromBundle("client")).build();
 			System.out.println(webClient
 					.get()
 					.uri("https://server1:8080/")
@@ -101,24 +143,18 @@ public class HttpshttpApplication {
 
 	@Bean
 	public CommandLineRunner clrRestClient(RestClientSsl restClientSsl,
-											@Value("${loopback.http.port}") int loopbackHttpPort) {
+										   @Value("${loopback.http.port}") int loopbackHttpPort) {
 		return (String... args) -> {
 			HttpComponentsClientHttpRequestFactory requestFactory = getHttpComponentsClientHttpRequestFactory();
 
-			System.out.println("Using RestClient: Accessing https://server1:8080/ without SslBundle but all trusting TrustManager : ");
 			RestClient restClient = RestClient.builder()
 											  .requestFactory(requestFactory)
 											  .build();
+
+			System.out.println("Using RestClient: Accessing https://server1:8080/ without SslBundle but all trusting TrustManager : ");
 			System.out.println(restClient
 					.get()
 					.uri("https://server1:8080/")
-					.retrieve()
-					.body(String.class));
-
-			System.out.println("Using RestClient: Accessing https://192.168.56.1:8080/ without SslBundle but all trusting TrustManager : ");
-			System.out.println(restClient
-					.get()
-					.uri("https://192.168.56.1:8080/")
 					.retrieve()
 					.body(String.class));
 
@@ -166,9 +202,6 @@ public class HttpshttpApplication {
 					.requestFactory(() -> requestFactory)
 					.build();
 			System.out.println(restTemplate.getForObject("https://server1:8080/", String.class));
-
-			System.out.println("Using RestTemplate: Accessing https://192.168.56.1:8080/ without SslBundle but all trusting TrustManager : ");
-			System.out.println(restTemplate.getForObject("https://192.168.56.1:8080/", String.class));
 
 			System.out.println("Using RestTemplate: Accessing https://127.0.0.1:8080/ without SslBundle but all trusting TrustManager : ");
 			System.out.println(restTemplate.getForObject("https://127.0.0.1:8080/", String.class));
