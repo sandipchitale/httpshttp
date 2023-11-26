@@ -126,9 +126,11 @@ public class HttpshttpApplication {
 	@Bean
 	public CommandLineRunner clrRestTemplate (RestTemplateBuilder restTemplateBuilder, SslBundles sslBundles, @Value("${loopback.http.port}") int loopbackHttpPort) {
 		return (String... args) -> {
+			HttpComponentsClientHttpRequestFactory requestFactory = getHttpComponentsClientHttpRequestFactory();
+
 			System.out.println("Using RestTemplate: Accessing https://server1:8080/ without SslBundle but all trusting TrustManager : ");
 			RestTemplate restTemplate = restTemplateBuilder
-					.requestFactory(() -> getHttpComponentsClientHttpRequestFactory())
+					.requestFactory(() -> requestFactory)
 					.build();
 			System.out.println(restTemplate.getForObject("https://server1:8080/", String.class));
 
