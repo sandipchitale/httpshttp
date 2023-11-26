@@ -16,6 +16,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnNotWarDeployment;
 import org.springframework.boot.autoconfigure.web.client.RestClientSsl;
+import org.springframework.boot.autoconfigure.web.reactive.function.client.WebClientSsl;
 import org.springframework.boot.ssl.SslBundles;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory;
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
@@ -70,15 +72,43 @@ public class HttpshttpApplication {
 	}
 
 	@Bean
-	public CommandLineRunner clrRestClient (RestClientSsl restClientSsl,
-											@Value("${loopback.http.port}") int loopbackHttpPort) {
+	public CommandLineRunner clrWebClient(WebClientSsl webClientSsl,
+										  @Value("${loopback.http.port}") int loopbackHttpPort) {
 	    return (String... args) -> {
+			HttpComponentsClientHttpRequestFactory requestFactory = getHttpComponentsClientHttpRequestFactory();
+
+			System.out.println("Using WebClient: Accessing with SslBundle 'client' https://server1:8080/ : ");
+			WebClient webClient = WebClient.builder().apply(webClientSsl.fromBundle("client")).build();
+			System.out.println(webClient
+					.get()
+					.uri("https://server1:8080/")
+					.retrieve()
+					.bodyToMono(String.class)
+					.block()
+			);
+
+			System.out.println("Using WebClient: Accessing http://127.0.0.1:" + loopbackHttpPort + " :");
+			webClient = WebClient.builder().build();
+			System.out.println(webClient
+					.get()
+					.uri("http://127.0.0.1:" + loopbackHttpPort)
+					.retrieve()
+					.bodyToMono(String.class)
+					.block()
+			);
+		};
+	}
+
+	@Bean
+	public CommandLineRunner clrRestClient(RestClientSsl restClientSsl,
+											@Value("${loopback.http.port}") int loopbackHttpPort) {
+		return (String... args) -> {
 			HttpComponentsClientHttpRequestFactory requestFactory = getHttpComponentsClientHttpRequestFactory();
 
 			System.out.println("Using RestClient: Accessing https://server1:8080/ without SslBundle but all trusting TrustManager : ");
 			RestClient restClient = RestClient.builder()
-					.requestFactory(requestFactory)
-					.build();
+											  .requestFactory(requestFactory)
+											  .build();
 			System.out.println(restClient
 					.get()
 					.uri("https://server1:8080/")
@@ -106,7 +136,7 @@ public class HttpshttpApplication {
 					.retrieve()
 					.body(String.class));
 
-			System.out.println("Using RestClient: Accessing with SslBundle https://server1:8080/ : ");
+			System.out.println("Using RestClient: Accessing with SslBundle 'client' https://server1:8080/ : ");
 			restClient = RestClient.builder().apply(restClientSsl.fromBundle("client")).build();
 			System.out.println(restClient
 					.get()
@@ -146,7 +176,7 @@ public class HttpshttpApplication {
 			System.out.println("Using RestTemplate: Accessing https://localhost:8080/ without SslBundle but all trusting TrustManager : ");
 			System.out.println(restTemplate.getForObject("https://localhost:8080/", String.class));
 
-			System.out.println("Using RestTemplate: Accessing with SslBundle https://server1:8080/ : ");
+			System.out.println("Using RestTemplate: Accessing with SslBundle 'client' https://server1:8080/ : ");
 			restTemplate = restTemplateBuilder.setSslBundle(sslBundles.getBundle("client")).build();
 			System.out.println(restTemplate.getForObject("https://server1:8080/", String.class));
 
