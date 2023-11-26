@@ -70,7 +70,8 @@ public class HttpshttpApplication {
 	}
 
 	@Bean
-	public CommandLineRunner clrRestClient (RestClientSsl restClientSsl, @Value("${loopback.http.port}") int loopbackHttpPort) {
+	public CommandLineRunner clrRestClient (RestClientSsl restClientSsl,
+											@Value("${loopback.http.port}") int loopbackHttpPort) {
 	    return (String... args) -> {
 			HttpComponentsClientHttpRequestFactory requestFactory = getHttpComponentsClientHttpRequestFactory();
 
@@ -124,7 +125,9 @@ public class HttpshttpApplication {
 	}
 
 	@Bean
-	public CommandLineRunner clrRestTemplate (RestTemplateBuilder restTemplateBuilder, SslBundles sslBundles, @Value("${loopback.http.port}") int loopbackHttpPort) {
+	public CommandLineRunner clrRestTemplate(RestTemplateBuilder restTemplateBuilder,
+											 SslBundles sslBundles,
+											 @Value("${loopback.http.port}") int loopbackHttpPort) {
 		return (String... args) -> {
 			HttpComponentsClientHttpRequestFactory requestFactory = getHttpComponentsClientHttpRequestFactory();
 
