@@ -16,6 +16,8 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnNotWarDeployment;
 import org.springframework.boot.autoconfigure.web.client.RestClientSsl;
+import org.springframework.boot.ssl.SslBundles;
+import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory;
 import org.springframework.boot.web.server.WebServerFactoryCustomizer;
 import org.springframework.context.annotation.Bean;
@@ -23,18 +25,23 @@ import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestTemplate;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import java.net.Socket;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 
 @SpringBootApplication
 public class HttpshttpApplication {
 	private static final Logger LOG = LoggerFactory.getLogger(HttpshttpApplication.class);
+
+	private static HttpComponentsClientHttpRequestFactory requestFactory;
 
 	public static void main(String[] args) {
 		SpringApplication.run(HttpshttpApplication.class, args);
@@ -63,53 +70,11 @@ public class HttpshttpApplication {
 	}
 
 	@Bean
-	public CommandLineRunner clr (RestClientSsl restClientSsl, @Value("${loopback.http.port}") int loopbackHttpPort) {
+	public CommandLineRunner clrRestClient (RestClientSsl restClientSsl, @Value("${loopback.http.port}") int loopbackHttpPort) {
 	    return (String... args) -> {
-			System.out.println("Accessing https://server1:8080/ without SslBundle but all trusting TrustManager : ");
-			TrustManager[] trustAllCertsTrustManagers = new TrustManager[] {
-					new X509ExtendedTrustManager() {
-						@Override
-						public void checkClientTrusted(X509Certificate[] chain, String authType, Socket socket) throws CertificateException {}
+			HttpComponentsClientHttpRequestFactory requestFactory = getHttpComponentsClientHttpRequestFactory();
 
-						@Override
-						public void checkServerTrusted(X509Certificate[] chain, String authType, Socket socket) throws CertificateException {}
-
-						@Override
-						public void checkClientTrusted(X509Certificate[] chain, String authType, SSLEngine engine) throws CertificateException {}
-
-						@Override
-						public void checkServerTrusted(X509Certificate[] chain, String authType, SSLEngine engine) throws CertificateException {}
-
-						@Override
-						public X509Certificate[] getAcceptedIssuers() {
-							return null;
-						}
-
-						@Override
-						public void checkClientTrusted(X509Certificate[] certs, String authType) {}
-
-						@Override
-						public void checkServerTrusted(X509Certificate[] certs, String authType) {}
-					}
-			};
-
-			SSLContext sslContext = SSLContext.getInstance("TLS");
-			sslContext.init(null, trustAllCertsTrustManagers, null);
-			SSLConnectionSocketFactory sslConnectionSocketFactory = new SSLConnectionSocketFactory(sslContext, new NoopHostnameVerifier());
-
-			final HttpClientConnectionManager httpClientConnectionManager = PoolingHttpClientConnectionManagerBuilder
-					.create()
-					.setSSLSocketFactory(sslConnectionSocketFactory)
-					.build();
-
-			CloseableHttpClient closeableHttpClient = HttpClients.custom()
-					.setConnectionManager(httpClientConnectionManager)
-					.evictExpiredConnections()
-					.build();
-
-			HttpComponentsClientHttpRequestFactory requestFactory = new HttpComponentsClientHttpRequestFactory();
-			requestFactory.setHttpClient(closeableHttpClient);
-
+			System.out.println("Using RestClient: Accessing https://server1:8080/ without SslBundle but all trusting TrustManager : ");
 			RestClient restClient = RestClient.builder()
 					.requestFactory(requestFactory)
 					.build();
@@ -119,28 +84,28 @@ public class HttpshttpApplication {
 					.retrieve()
 					.body(String.class));
 
-			System.out.println("Accessing https://192.168.56.1:8080/ without SslBundle but all trusting TrustManager : ");
+			System.out.println("Using RestClient: Accessing https://192.168.56.1:8080/ without SslBundle but all trusting TrustManager : ");
 			System.out.println(restClient
 					.get()
 					.uri("https://192.168.56.1:8080/")
 					.retrieve()
 					.body(String.class));
 
-			System.out.println("Accessing https://127.0.0.1:8080/ without SslBundle but all trusting TrustManager : ");
+			System.out.println("Using RestClient: Accessing https://127.0.0.1:8080/ without SslBundle but all trusting TrustManager : ");
 			System.out.println(restClient
 					.get()
 					.uri("https://127.0.0.1:8080/")
 					.retrieve()
 					.body(String.class));
 
-			System.out.println("Accessing https://localhost:8080/ without SslBundle but all trusting TrustManager : ");
+			System.out.println("Using RestClient: Accessing https://localhost:8080/ without SslBundle but all trusting TrustManager : ");
 			System.out.println(restClient
 					.get()
 					.uri("https://localhost:8080/")
 					.retrieve()
 					.body(String.class));
 
-			System.out.println("Accessing with SslBundle https://server1:8080/ : ");
+			System.out.println("Using RestClient: Accessing with SslBundle https://server1:8080/ : ");
 			restClient = RestClient.builder().apply(restClientSsl.fromBundle("client")).build();
 			System.out.println(restClient
 					.get()
@@ -148,7 +113,7 @@ public class HttpshttpApplication {
 					.retrieve()
 					.body(String.class));
 
-			System.out.println("Accessing http://127.0.0.1:" + loopbackHttpPort + " :");
+			System.out.println("Using RestClient: Accessing http://127.0.0.1:" + loopbackHttpPort + " :");
 			restClient = RestClient.builder().build();
 			System.out.println(restClient
 					.get()
@@ -158,4 +123,84 @@ public class HttpshttpApplication {
 		};
 	}
 
+	@Bean
+	public CommandLineRunner clrRestTemplate (RestTemplateBuilder restTemplateBuilder, SslBundles sslBundles, @Value("${loopback.http.port}") int loopbackHttpPort) {
+		return (String... args) -> {
+			HttpComponentsClientHttpRequestFactory requestFactory = getHttpComponentsClientHttpRequestFactory();
+
+			System.out.println("Using RestTemplate: Accessing https://server1:8080/ without SslBundle but all trusting TrustManager : ");
+			RestTemplate restTemplate = restTemplateBuilder
+					.requestFactory(() -> requestFactory)
+					.build();
+			System.out.println(restTemplate.getForObject("https://server1:8080/", String.class));
+
+			System.out.println("Using RestTemplate: Accessing https://192.168.56.1:8080/ without SslBundle but all trusting TrustManager : ");
+			System.out.println(restTemplate.getForObject("https://192.168.56.1:8080/", String.class));
+
+			System.out.println("Using RestTemplate: Accessing https://127.0.0.1:8080/ without SslBundle but all trusting TrustManager : ");
+			System.out.println(restTemplate.getForObject("https://127.0.0.1:8080/", String.class));
+
+			System.out.println("Using RestTemplate: Accessing https://localhost:8080/ without SslBundle but all trusting TrustManager : ");
+			System.out.println(restTemplate.getForObject("https://localhost:8080/", String.class));
+
+			System.out.println("Using RestTemplate: ccessing with SslBundle https://server1:8080/ : ");
+			restTemplate = restTemplateBuilder.setSslBundle(sslBundles.getBundle("client")).build();
+			System.out.println(restTemplate.getForObject("https://server1:8080/", String.class));
+
+			System.out.println("Using RestTemplate: Accessing http://127.0.0.1:" + loopbackHttpPort + " :");
+			restTemplate = restTemplateBuilder.build();
+			System.out.println(restTemplate.getForObject("http://127.0.0.1:" + loopbackHttpPort, String.class));
+		};
+	}
+
+	private static HttpComponentsClientHttpRequestFactory getHttpComponentsClientHttpRequestFactory() throws NoSuchAlgorithmException, KeyManagementException {
+		if (requestFactory != null) {
+			return requestFactory;
+		}
+		TrustManager[] trustAllCertsTrustManagers = new TrustManager[] {
+				new X509ExtendedTrustManager() {
+					@Override
+					public void checkClientTrusted(X509Certificate[] chain, String authType, Socket socket) throws CertificateException {}
+
+					@Override
+					public void checkServerTrusted(X509Certificate[] chain, String authType, Socket socket) throws CertificateException {}
+
+					@Override
+					public void checkClientTrusted(X509Certificate[] chain, String authType, SSLEngine engine) throws CertificateException {}
+
+					@Override
+					public void checkServerTrusted(X509Certificate[] chain, String authType, SSLEngine engine) throws CertificateException {}
+
+					@Override
+					public X509Certificate[] getAcceptedIssuers() {
+						return null;
+					}
+
+					@Override
+					public void checkClientTrusted(X509Certificate[] certs, String authType) {}
+
+					@Override
+					public void checkServerTrusted(X509Certificate[] certs, String authType) {}
+				}
+		};
+
+		SSLContext sslContext = SSLContext.getInstance("TLS");
+		sslContext.init(null, trustAllCertsTrustManagers, null);
+		SSLConnectionSocketFactory sslConnectionSocketFactory = new SSLConnectionSocketFactory(sslContext,
+				new NoopHostnameVerifier());
+
+		final HttpClientConnectionManager httpClientConnectionManager = PoolingHttpClientConnectionManagerBuilder
+				.create()
+				.setSSLSocketFactory(sslConnectionSocketFactory)
+				.build();
+
+		CloseableHttpClient closeableHttpClient = HttpClients.custom()
+															 .setConnectionManager(httpClientConnectionManager)
+															 .evictExpiredConnections()
+															 .build();
+
+		requestFactory = new HttpComponentsClientHttpRequestFactory();
+		requestFactory.setHttpClient(closeableHttpClient);
+		return requestFactory;
+	}
 }
