@@ -143,7 +143,7 @@ public class HttpshttpApplication {
 			System.out.println("Using RestTemplate: Accessing https://localhost:8080/ without SslBundle but all trusting TrustManager : ");
 			System.out.println(restTemplate.getForObject("https://localhost:8080/", String.class));
 
-			System.out.println("Using RestTemplate: ccessing with SslBundle https://server1:8080/ : ");
+			System.out.println("Using RestTemplate: Accessing with SslBundle https://server1:8080/ : ");
 			restTemplate = restTemplateBuilder.setSslBundle(sslBundles.getBundle("client")).build();
 			System.out.println(restTemplate.getForObject("https://server1:8080/", String.class));
 
